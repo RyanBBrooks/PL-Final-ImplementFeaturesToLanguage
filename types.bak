@@ -1,0 +1,6 @@
+#lang plait
+
+(define-type Type
+  (numT)
+  (arrayT [array-type : Type])
+  (objT [class-name : Symbol]))

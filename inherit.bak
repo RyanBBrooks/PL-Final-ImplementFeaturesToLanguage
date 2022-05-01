@@ -3,8 +3,7 @@
 ;; Make all "class.rkt" definitions available here, where
 ;; the "class.rkt" file must be in the same directory
 ;; as this one:
-(require "class.rkt"
-         "types.rkt")
+(require "class.rkt")
 
 (define-type ExpI
   (numI [n : Number])
@@ -13,30 +12,13 @@
   (multI [lhs : ExpI]
          [rhs : ExpI])
   (argI)
-  (thisI)
-
-
-  
   (nullI) ;;8 : null
-  
+  (thisI)
   (if0I [c : ExpI]  ;;2: If0
         [t : ExpI]
         [e : ExpI])
   (castI [s : Symbol] ;;1: cast
          [e : ExpI])
-  (newarrayI [type : Type] ;;6: array - new
-             [size : ExpI]
-             [value : ExpI])
-  (arrayrefI [array : ExpI] ;;6: array - ref
-             [i : ExpI])
-  (arraysetI [array : ExpI] ;;6: array - set
-             [i : ExpI]
-             [value : ExpI])
-  (beginI [f : ExpI] ;;begin
-          [s : ExpI])
-
-
-  
   (newI [class-name : Symbol]
         [args : (Listof ExpI)])
   (getI [obj-expr : ExpI]
@@ -70,19 +52,12 @@
       [(multI l r) (multE (recur l) (recur r))]
       [(argI) (argE)]
       [(thisI) (thisE)]
-
-      ;;6: array
-      [(newarrayI t s v) (newarrayE (recur s) (recur v))]
-      [(arrayrefI a i) (arrayrefE (recur a) (recur i))]
-      [(arraysetI a i v) (arraysetE (recur a) (recur i) (recur v))]
-      ;;6: begin to test imperitive
-      [(beginI f s) (beginE (recur f) (recur s))]
       
       ;;2: if0
       [(if0I c t e) (if0E (recur c) (recur t) (recur e))]
 
       ;;1: cast
-      [(castI s e)  (castE s (recur e))]
+      [(castI s e)  (if0E s (recur e))]
 
       [(newI class-name field-exprs)
        (newE class-name (map recur field-exprs))]
@@ -115,10 +90,6 @@
         (getE (numE 1) 'x))
   (test (exp-i->c (sendI (numI 1) 'mdist (numI 2)) 'Object)
         (sendE (numE 1) 'mdist (numE 2)))
-
-  ;;1: cast
-  (test (exp-i->c (castI 'Object (newI 'Object (list (numI 1)))) 'Object)
-        (castE 'Object (newE 'Object (list (numE 1)))))
   
   ;;2: if0 - test - exp-i->c
   (test (exp-i->c (if0I (numI 10) (numI 2) (numI -99)) 'Object)
@@ -127,17 +98,6 @@
   ;;8: null
   (test (exp-i->c (nullI) 'Object)
         (nullE))
-
-  ;;6: arrray
-  (test (exp-i->c (newarrayI (numT) (numI 10) (numI 2)) 'Object)
-        (newarrayE (numE 10) (numE 2)))
-  (test (exp-i->c (arrayrefI (newarrayI (numT) (numI 10) (numI 2)) (numI 2)) 'Object)
-        (arrayrefE (newarrayE (numE 10) (numE 2)) (numE 2)))
-  (test (exp-i->c (arraysetI (newarrayI (numT) (numI 10) (numI 2)) (numI 2) (numI 3)) 'Object)
-        (arraysetE (newarrayE (numE 10) (numE 2)) (numE 2) (numE 3)))
-  (test (exp-i->c (beginI (numI 1) (numI 2)) 'Object)
-                  (beginE (numE 1) (numE 2)))
-  
   
   (test (exp-i->c (multI (numI 10) (numI 2)) 'Object)
         (multE (numE 10) (numE 2)))  
@@ -148,9 +108,8 @@
 
 (define (class-i->c-not-flat [c : ClassI]) : Class
   (type-case ClassI c
-    [(classI super-name field-names methods) ;;  1: cast
+    [(classI super-name field-names methods)
      (classC
-      super-name
       field-names
       (map (lambda (m)
              (values (fst m)
@@ -175,8 +134,7 @@
              (list posn3d-mdist-i-method))))
   (define posn3d-c-class-not-flat
     (values 'Posn3D
-            (classC 'Posn
-                    (list 'z)
+            (classC (list 'z)
                     (list posn3d-mdist-c-method))))
 
   (test (class-i->c-not-flat (snd posn3d-i-class))
@@ -188,11 +146,10 @@
                        [classes-not-flat : (Listof (Symbol * Class))] 
                        [i-classes : (Listof (Symbol * ClassI))]) : Class
   (type-case Class (find classes-not-flat name)
-    [(classC super-name field-names methods)
+    [(classC field-names methods)
      (type-case Class (flatten-super name classes-not-flat i-classes)
-       [(classC super-super-name super-field-names super-methods)
+       [(classC super-field-names super-methods)
         (classC
-         super-name ;;1:cast - keep same super name
          (add-fields super-field-names field-names)
          (add/replace-methods super-methods methods))])]))
 
@@ -202,7 +159,7 @@
   (type-case ClassI (find i-classes name)
     [(classI super-name field-names i-methods)
      (if (equal? super-name 'Object)
-         (classC 'Object empty empty) ;;1:cast - Object is its own super class
+         (classC empty empty)
          (flatten-class super-name
                         classes-not-flat
                         i-classes))]))
@@ -226,16 +183,14 @@
   (define posn-c-class-not-flat
     (values
      'Posn
-    (classC 'Object
-            (list 'x 'y)
+    (classC (list 'x 'y)
             (list (values 'mdist
                           (plusE (getE (thisE) 'x)
                                  (getE (thisE) 'y)))
                   addDist-c-method))))
   (define posn3d-c-class
     (values 'Posn3D
-            (classC 'Posn
-                    (list 'x 'y 'z)
+            (classC (list 'x 'y 'z)
                     (list posn3d-mdist-c-method
                           addDist-c-method))))
 

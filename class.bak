@@ -158,7 +158,7 @@
                            field-names
                            field-vals)
                      field-name)])]
-           [(nullV) (error 'interp "object is null")] ;;8 null
+           [(nullV) (error 'interp "object is null")]
            [else (error 'interp "not an object")])]
         [(sendE obj-expr method-name arg-expr)
          (local [(define obj (recur obj-expr))
@@ -167,15 +167,13 @@
              [(objV class-name field-vals)
               (call-method class-name method-name classes
                            obj arg-val)]
-             [(nullV) (error 'interp "object is null")] ;;8 null
+             [(nullV) (error 'interp "object is null")]
              [else (error 'interp "not an object")]))]
         [(ssendE obj-expr class-name method-name arg-expr)
          (local [(define obj (recur obj-expr))
                  (define arg-val (recur arg-expr))]
-           (type-case Value obj
-             [(nullV) (error 'interp "object is null")] ;;8 null
-             [else (call-method class-name method-name classes
-                                obj arg-val)]))]))))
+           (call-method class-name method-name classes
+                        obj arg-val))]))))
 
 (define (call-method class-name method-name classes
                      obj arg-val)
@@ -422,7 +420,7 @@
             "object is null")
   (test/exn (interp-nullified (sendE (newE 'Nullified (list (numE 2) (nullE))) 'get-x-wrap (nullE)))
             "object is null")
-  (test/exn (interp-nullified (ssendE (nullE) 'Posn 'mdist (nullE)))
+  (test/exn (interp-nullified (ssendE (newE 'Nullified (list (numE 2) (nullE))) 'get-x-wrap (nullE)))
             "object is null")
   ;;getting a null object should return nullV
   (test (interp-nullified (sendE (newE 'Nullified (list (numE 10) (nullE))) 'get-y (nullE)))

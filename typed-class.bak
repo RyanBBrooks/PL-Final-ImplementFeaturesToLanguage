@@ -1,8 +1,7 @@
 #lang plait
 
 (require "class.rkt"
-         "inherit.rkt"
-         "types.rkt")
+         "inherit.rkt")
 
 (define-type ClassT
   (classT [super-name : Symbol]
@@ -13,6 +12,10 @@
   (methodT [arg-type : Type]
            [result-type : Type]
            [body-expr : ExpI]))
+
+(define-type Type
+  (numT)
+  (objT [class-name : Symbol]))
 
 (module+ test
   (print-only-errors #t))
@@ -73,19 +76,14 @@
 (define (is-subtype? t1 t2 t-classes)
   (type-case Type t1
     [(objT name1)
-     (type-case Type t2 
-       [(objT name2)
-        (if (equal? 'null name2) ;;8: null - null is a subtype and supertype of every object
-            #t
-            (if (equal? 'null name1) ;;8: null - null is a subtype and supertype of every object
+         (type-case Type t2 
+           [(objT name2)
+            (if (equal? 'null name2) ;;8: null - null is a subtype and supertype of everything
                 #t
-                (is-subclass? name1 name2 t-classes)))]
-       [else #f])]
-    [(arrayT a-t1) ;;6: arrays
-     (type-case Type t2 
-       [(arrayT a-t2) ;;not option 7 so not subtype if their types are subtypes
-        (equal? a-t1 a-t2)]
-       [else #f])]
+                (if (equal? 'null name1) ;;8: null - null is a subtype and supertype of everything
+                    #t
+                    (is-subclass? name1 name2 t-classes)))]
+           [else #f])]
     [else (equal? t1 t2)]))
 
 (module+ test
@@ -104,52 +102,6 @@
   (test (is-subtype? (numT) (objT 'Object) empty)
         #f)
 
-  ;;6: array - test - is-subtype?
-  (test (is-subtype? (arrayT (objT 'null)) (objT 'null) empty)
-        #f)
-  (test (is-subtype? (objT 'null) (arrayT (objT 'null)) empty)
-        #f)
-  (test (is-subtype? (objT 'Object) (arrayT (objT 'Object)) empty)
-        #f)
-  (test (is-subtype? (arrayT (objT 'Object)) (objT 'Object) empty)
-        #f)
-  (test (is-subtype? (arrayT (numT)) (numT) empty)
-        #f)
-  (test (is-subtype? (numT) (arrayT (numT))  empty)
-        #f)
-  (test (is-subtype? (arrayT (numT)) (arrayT (numT))  empty)
-        #t)
-  (test (is-subtype? (arrayT (arrayT (numT))) (arrayT (numT))  empty)
-        #f)
-  (test (is-subtype? (objT 'Object) (arrayT (objT 'Object))  empty)
-        #f)
-  (test (is-subtype? (arrayT (objT 'Object)) (arrayT (objT 'Object))  empty)
-        #t)
-  (test (is-subtype? (arrayT (arrayT (objT 'Object))) (arrayT (objT 'Object))  empty)
-        #f)
-  (test (is-subtype? (objT 'Object) (arrayT (objT 'Object))  empty)
-        #f)
-  (test (is-subtype? (arrayT (objT 'Object)) (arrayT (objT 'Object))  empty)
-        #t)
-  (test (is-subtype? (arrayT (arrayT (objT 'Object))) (arrayT (objT 'Object))  empty)
-        #f)
-  (test (is-subtype? (arrayT (arrayT (objT 'Object))) (arrayT (arrayT (objT 'Object)))  empty)
-        #t)
-  (test (is-subtype? (arrayT (objT 'A)) (arrayT (objT 'Object))  (list a-t-class b-t-class))
-        #f)
-  (test (is-subtype? (arrayT (objT 'Object)) (arrayT (objT 'A))  (list a-t-class b-t-class))
-        #f)
-  (test (is-subtype? (arrayT (objT 'B)) (arrayT (objT 'Object))  (list a-t-class b-t-class))
-        #f)
-  (test (is-subtype? (arrayT (objT 'Object)) (arrayT (objT 'B))  (list a-t-class b-t-class))
-        #f)
-  (test (is-subtype? (arrayT (objT 'B)) (arrayT (objT 'A))  (list a-t-class b-t-class))
-        #f)
-  (test (is-subtype? (arrayT (objT 'A)) (arrayT (objT 'B))  (list a-t-class b-t-class))
-        #f)
-  
-  
-  
   ;;8: null - test - is-subtype?
   (test (is-subtype? (objT 'null) (objT 'Object) empty)
         #t)
@@ -190,49 +142,7 @@
         [(nullI) (objT 'null)]
 
         ;;1: cast
-        [(castI s e) (local [(define e-t (recur e))
-                             (define s-t (parse-type (symbol->s-exp s)))]                                          
-                       ;;ensure cast can succeed
-                       (if (or (is-subtype? s-t e-t t-classes)
-                               (is-subtype? e-t s-t t-classes))
-                           s-t ;;succeeds
-                           (type-error e (to-string s-t))))];;fails
-
-        ;;6: arrays
-        ;;ensure l is numT
-        ;;if t doesnt match the type of v, then error
-        ;;otherwise return array-t
-        [(newarrayI t l v) (if (equal? (numT) (recur l))
-                               (local [(define v-t (recur v))]
-                                 (if (is-subtype? v-t t t-classes)
-                                     (arrayT t)
-                                     (type-error t (to-string t))))
-                               (type-error l "arrayT"))]
-        ;;ensure i is numT
-        ;;always the type of the array so long as it is an array
-        [(arrayrefI a i) (if (equal? (numT) (recur i))
-                             (type-case Type (recur a)
-                               [(arrayT t)(arrayT t)]
-                               [else (type-error a "arrayT")])
-                             (type-error i "arrayT"))]
-        ;;ensure i is numT
-        ;;determine type of array by recurring, if it is not an array then error
-        ;;get the type of the type of the array by type case, if it doesnt match the type of v, then error
-        ;;otherwise return numT
-        [(arraysetI a i v) (if (equal? (numT) (recur i))
-                               (local [(define a-t (recur a))
-                                       (define v-t (recur v))]
-                                 (type-case Type (recur a)
-                                   [(arrayT t)
-                                    (if (is-subtype? v-t t t-classes)
-                                        (numT)
-                                        (type-error v (to-string a-t)))]
-                                   [else (type-error a "arrayT")]))
-                               (type-error i "arrayT"))]
-
-        ;;begin - always the type of s
-        [(beginI f s)(recur s)]
-                           
+        [(castI s e) (is-subtype?(parse-type (symbol->s-exp  (s)))
         
         ;;2: if0
         [(if0I c t e)
@@ -303,11 +213,10 @@
       (objT super-c2)
       (if (is-subclass? c2 super-c1 t-classes)
           (objT super-c1)
-          (type-case ClassT (find t-classes super-c1)
-            [(classT super-duper-c1 fields1 methods1)
-             (type-case ClassT (find t-classes super-c2)
-               [(classT super-duper-c2 fields2 methods2)             
-                (find-lub-recur c1 c2 super-duper-c1 super-duper-c2 t-classes)])]))))
+          (type-case ClassT (find t-classes c1)
+            [(classT super-c1 fields1 methods1) (type-case ClassT (find t-classes c1)
+                                                     [(classT super-c2 fields2 methods2)             
+                                                      (find-lub-recur c1 c2 super-c1 super-c2 t-classes)])]))))
 
 
 (define (typecheck-send [class-name : Symbol]
@@ -408,13 +317,7 @@
                     (list (values 'topleft (objT 'Posn)))
                     (list))))
 
-  (define square-two-t-class 
-    (values 'Square-two
-            (classT 'Square
-                    (list)
-                    (list))))
-
-  (define nullified-t-class ;;8: null
+  (define nullified-t-class
     (values 'Nullified
             (classT 'Object
                     (list (values 'x (numT)) (values 'y (objT 'Posn)))
@@ -432,7 +335,7 @@
 
   (define (typecheck-posn a)
     (typecheck a
-               (list posn-t-class posn3D-t-class square-t-class square-two-t-class)))
+               (list posn-t-class posn3D-t-class square-t-class)))
 
   (define (typecheck-nullified a)
     (typecheck a
@@ -462,8 +365,6 @@
   ;;2: if0 - test - typecheck
   (test (typecheck-posn (if0I (numI 1) (newI 'Object empty) (newI 'Posn (list (numI 0) (numI 0)))))
         (objT 'Object))
-  (test (typecheck-posn (if0I (numI 1) (newI 'Square-two (list (newI 'Posn (list (numI 0) (numI 1))))) (newI 'Posn3D (list (numI 0) (numI 0) (numI 0)))))
-        (objT 'Object))
   (test (typecheck-posn (if0I (numI 1) (newI 'Square (list (newI 'Posn (list (numI 0) (numI 1))))) (newI 'Posn (list (numI 0) (numI 0)))))
         (objT 'Object))
   (test (typecheck-posn (if0I (numI 1) (numI 2) (numI -3)))
@@ -472,8 +373,6 @@
         (objT 'Posn))
   (test (typecheck-posn (if0I (numI 1) (newI 'Posn (list (numI 0) (numI 0))) (newI 'Posn3D (list (numI 0) (numI 0) (numI 0)))))
         (objT 'Posn))
-  (test (typecheck-posn (if0I (numI 1) (newI 'Object empty) (newI 'Posn3D (list (numI 0) (numI 0) (numI 0)))))
-        (objT 'Object))
   (test (typecheck-posn (if0I (numI 1) (newI 'Posn3D (list (numI 0) (numI 0) (numI 0))) (newI 'Posn3D (list (numI 0) (numI 0) (numI 0)))))
         (objT 'Posn3D))
   (test/exn (typecheck (if0I (newI 'Object empty) (numI 2) (numI -3)) empty)
@@ -508,43 +407,6 @@
   (test (typecheck-nullified (sendI (newI 'Nullified (list (numI 10) (nullI))) 'get-y (nullI)))
         (objT 'Posn))
 
-  ;;1: cast - test - typecheck
-  (test/exn (typecheck (castI 'num (nullI)) empty)
-            "no type")
-  (test (typecheck (castI 'Object (nullI)) empty)
-        (objT 'Object))
-  (test (typecheck-posn (castI 'Object new-posn27))
-        (objT 'Object))
-  (test (typecheck-posn (castI 'Posn new-posn27))
-        (objT 'Posn))
-  (test (typecheck-posn (castI 'Posn3D new-posn27))
-        (objT 'Posn3D)) 
-  (test/exn (typecheck-nullified (castI 'Nullified new-posn27))
-            "no type")
-
-  ;;6: arrays/begin - test - typecheck
-  (test (typecheck (newarrayI (numT) (numI 10) (numI 2)) empty)
-        (arrayT(numT)))
-  (test/exn (typecheck (newarrayI (arrayT (numT)) (numI 10) (numI 2)) empty)
-            "no type")
-  (test/exn (typecheck (newarrayI (numT) (newI 'Object empty) (numI 2)) empty)
-            "no type")
-  (test (typecheck (arrayrefI (newarrayI (numT) (numI 10) (numI 2)) (numI 2)) empty)
-         (arrayT(numT)))
-  (test/exn (typecheck (arrayrefI (newarrayI (numT) (numI 10) (numI 2)) (newI 'Object empty)) empty)
-            "no type")
-  (test/exn (typecheck (arrayrefI (newI 'Object empty) (numI 1)) empty)
-            "no type")
-  (test (typecheck (arraysetI (newarrayI (numT) (numI 10) (numI 2)) (numI 2) (numI 3)) empty)
-         (numT))
-  (test/exn (typecheck (arraysetI (newarrayI (numT) (numI 10) (numI 2)) (newI 'Object empty) (numI 3)) empty)
-            "no type")
-  (test/exn (typecheck (arraysetI (newarrayI (numT) (numI 10) (numI 2)) (numI 1) (newI 'Object empty)) empty)
-            "no type")
-  (test/exn (typecheck (arraysetI (newI 'Object empty) (numI 1) (numI 3)) empty)
-            "no type")
-  (test (typecheck (beginI (numI 1) (numI 2)) empty)
-                  (numT))
   
   (test/exn (typecheck-posn (sendI (numI 10) 'mdist (numI 0)))
             "no type")

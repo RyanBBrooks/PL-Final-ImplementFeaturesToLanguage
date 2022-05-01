@@ -1,7 +1,6 @@
 #lang plait
 (require "class.rkt"
-         "inherit.rkt"
-         "types.rkt")
+         "inherit.rkt")
 
 (module+ test
   (print-only-errors #t))
@@ -54,23 +53,6 @@
            (parse (third (s-exp->list s)))
            (parse (fourth (s-exp->list s))))]
 
-   ;;6: arrays & begin -> with separate types - new array directly pases-type from the first ANY
-   [(s-exp-match? `{newarray ANY ANY ANY} s)
-    (newarrayI (parse-type (second (s-exp->list s)))
-           (parse (third (s-exp->list s)))
-           (parse (fourth (s-exp->list s))))]
-   [(s-exp-match? `{arrayref ANY ANY} s)
-    (arrayrefI (parse (second (s-exp->list s)))
-           (parse (third (s-exp->list s))))]
-   [(s-exp-match? `{arrayset ANY ANY ANY} s)
-    (arraysetI (parse (second (s-exp->list s)))
-           (parse (third (s-exp->list s)))
-           (parse (fourth (s-exp->list s))))]
-   ;;6: arrays & begin
-    [(s-exp-match? `{begin ANY ANY} s)
-    (beginI (parse (second (s-exp->list s)))
-           (parse (third (s-exp->list s))))]
-
    ;;8: null
    [(s-exp-match? `null s) (nullI)]
 
@@ -112,22 +94,6 @@
   ;;8: null - test - parse-class of null named provides invalid input
   (test/exn (parse-class `{class null extends Object {}})
             "invalid input")
-  
-  ;;1: cast - test - parse
-  (test (parse `{cast Object {new Object 1}})
-        (castI 'Object (newI 'Object (list (numI 1)))))
-
-  ;;6: array
-  (test (parse `{newarray num 5 1})
-        (newarrayI (numT) (numI 5) (numI 1)))
-  (test (parse `{arrayref {newarray num 5 1} 0})
-        (arrayrefI (newarrayI (numT) (numI 5) (numI 1))(numI 0)))
-  (test (parse `{arrayset {newarray num 5 1} 0 -9})
-        (arraysetI (newarrayI (numT) (numI 5) (numI 1))(numI 0) (numI -9)))
-  (test (parse `{newarray {< num >} 5 {newarray num 5 1}})
-        (newarrayI (arrayT (numT)) (numI 5) (newarrayI (numT) (numI 5) (numI 1))))
-  (test (parse `{begin 5 2})
-        (beginI (numI 5) (numI 2)))
   
   (test (parse `{+ 1 2})
         (plusI (numI 1) (numI 2)))
@@ -177,9 +143,6 @@
       ;;8: null - case for null
       [(nullV) `null] 
 
-      ;;6: arrays - case for array
-      [(arrayV vs) `array]
-      
       [(objV class-name field-vals) `object])))
 
 (module+ test
@@ -197,39 +160,6 @@
              {}})
          `null)
         `null)
-
-  ;;6: array - interp prog
-  (test (interp-prog
-         (list
-          `{class Empty extends Object
-             {}})
-         `{newarray num 5 1})
-        `array)
-
-  ;;2: if0 - test - interp-t-prog
-  (test (interp-prog
-         (list
-          `{class Empty extends Object
-             {}})
-         `{if0 1 -10 10})
-        `10)
-
-  ;;1: cast - test - interp-prog
-  (test (interp-prog 
-        (list
-         `{class Posn extends Object
-            {x y}
-            [mdist {arg} {+ {get this x} {get this y}}]
-            [addDist {arg} {+ {send arg mdist 0}
-                              {send this mdist 0}}]}
-         
-         `{class Posn3D extends Posn
-            {z}
-            [mdist {arg} {+ {get this z} 
-                            {super mdist arg}}]})
-        
-        `{send {cast Posn {new Posn3D 2 5 6}} addDist {new Posn 1 2}})
-       `16)
 
  (test (interp-prog 
         (list

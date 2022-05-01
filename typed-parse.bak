@@ -2,7 +2,6 @@
 (require "class.rkt"
          "inherit.rkt"
          "typed-class.rkt"
-         "types.rkt"
          "inherit-parse.rkt")
 
 (module+ test
@@ -45,9 +44,23 @@
                (parse (fourth (rest (s-exp->list s))))))]
     [else (error 'parse-t-method "invalid input")]))
 
-
+(define (parse-type [s : S-Exp]) : Type
+  (cond
+    [(s-exp-match? `num s)
+     (numT)]
+    [(s-exp-match? `SYMBOL s)
+     (objT (s-exp->symbol s))]
+    [else (error 'parse-type "invalid input")]))
 
 (module+ test
+  (test (parse-type `num)
+        (numT))
+  
+  (test (parse-type `Object)
+        (objT 'Object))
+  (test/exn (parse-type `{})
+            "invalid input")
+  
   (test (parse-t-field `[x : num])
         (values 'x (numT)))
   (test/exn (parse-t-field `{x 1})
@@ -85,7 +98,7 @@
 
       ;;8: null
       [(nullV) `null]
-      [(arrayV v) `array];;6: array
+
       [(objV class-name field-vals) `object])))
 
 (module+ test
@@ -112,36 +125,6 @@
          `{if0 1 -10 10})
         `10)
 
- ;;6: array - interp-t-prog
-  (test (interp-t-prog
-         (list
-          `{class Empty extends Object
-             {}})
-         `{newarray num 5 1})
-        `array)
-
-  
-  ;;1: cast - test - interp-t-prog
-  (test (interp-t-prog 
-        (list
-         `{class Posn extends Object
-            {[x : num]
-             [y : num]}
-            [mdist {[arg : num]} : num
-                   {+ {get this x} {get this y}}]
-            [addDist {[arg : Posn]} : num
-                     {+ {send arg mdist 0}
-                        {send this mdist 0}}]}
-         
-         `{class Posn3D extends Posn
-            {[z : num]}
-            [mdist {[arg : num]} : num
-                   {+ {get this z} 
-                      {super mdist arg}}]})
-        
-        `{send {cast Posn {new Posn3D 2 5 6}} addDist {new Posn 1 2}})
-       `16)
-  
  (test (interp-t-prog 
         (list
          `{class Posn extends Object
